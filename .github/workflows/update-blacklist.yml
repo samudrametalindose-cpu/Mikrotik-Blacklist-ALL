@@ -1,0 +1,32 @@
+name: Auto Convert Firehol to MikroTik RSC
+
+on:
+  schedule:
+    # Berjalan otomatis seminggu sekali setiap hari Senin jam 07:00 WIB
+    - cron: '0 0 * * 1'
+  workflow_dispatch: # Memunculkan tombol rahasia untuk klik manual kapan saja
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v3
+
+    - name: Fetch and Convert IPset to RSC
+      run: |
+        echo "# Generated automatically from Firehol Haley SSH" > antiscanner.rsc
+        echo ":log info \"Mulai import blacklist dari GitHub...\"" >> antiscanner.rsc
+        
+        # Mengambil data dari firehol dan mengonversinya langsung ke format perintah MikroTik
+        curl -s https://iplists.firehol.org/files/haley_ssh.ipset | grep -v '^#' | grep -v '^$' | awk '{print ":do { /ip firewall address-list add list=\"00_antiscanner\" timeout=7d address=\""$1"\" comment=\"Auto Haley SSH\" } on-error={}"}' >> antiscanner.rsc
+        
+        echo ":log info \"Import blacklist selesai!\"" >> antiscanner.rsc
+
+    - name: Commit and Push Changes
+      run: |
+        git config --local user.email "actions@github.com"
+        git config --local user.name "GitHub Actions"
+        git add antiscanner.rsc
+        git commit -m "Auto-update blacklist: $(date +'%Y-%m-%d')" || exit 0
+        git push
